@@ -1,57 +1,57 @@
 <?php
-// Configuración de la base de datos con el puerto 3323
-$host = "127.0.0.1";
-$user = "root";
-$pass = "";
-$db   = "practica";
-$port = 3323;
-
-$conn = new mysqli($host, $user, $pass, $db, $port);
-
-if ($conn->connect_error) {
-    die("Error de conexión: " . $conn->connect_error);
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
 }
 
+require_once __DIR__ . '/dbcon.php';
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $nombre   = trim($_POST['nombre']);
-    $email    = trim($_POST['email']); // Se guardará en la columna 'username'
-    $password = $_POST['password'];
+    $email    = trim($_POST['email'] ?? '');
+    $password = trim($_POST['password'] ?? '');
 
-    if (!empty($nombre) && !empty($email) && !empty($password)) {
-        
-        // Verificar si el usuario/correo ya existe en la columna 'username'
-        $checkUser = $conn->prepare("SELECT id FROM usuarios WHERE username = ?");
-        $checkUser->bind_param("s", $email);
-        $checkUser->execute();
-        $result = $checkUser->get_result();
+    if (!empty($email) && !empty($password)) {
+        try {
+            $stmt = $con->prepare("SELECT id, nombre, password FROM usuarios WHERE username = :email");
+            $stmt->execute([':email' => $email]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($result->num_rows > 0) {
-            echo "<script>
-                    alert('El usuario/correo ya está registrado.');
-                    window.location.href = 'index.php';
-                  </script>";
-        } else {
-            // Insertar el nuevo usuario en tu tabla
-            $stmt = $conn->prepare("INSERT INTO usuarios (nombre, username, password, rol, estatus) VALUES (?, ?, ?, 2, 1)");
-            $stmt->bind_param("sss", $nombre, $email, $password);
+            if ($user) {
+                if ($password === $user['password'] || password_verify($password, $user['password'])) {
+                    $_SESSION['usuario_id']     = $user['id'];
+                    $_SESSION['usuario_nombre'] = $user['nombre'];
 
-            if ($stmt->execute()) {
+                    echo "<script>
+                            alert('¡Bienvenido de nuevo, " . addslashes($user['nombre']) . "!');
+                            window.location.href = 'index.php';
+                          </script>";
+                    exit;
+                } else {
+                    echo "<script>
+                            alert('Contraseña incorrecta.');
+                            window.location.href = 'index.php';
+                          </script>";
+                    exit;
+                }
+            } else {
+                // Si el usuario no existe, lanza la alerta y redirige de inmediato
                 echo "<script>
-                        alert('¡Registro exitoso! Ya puedes ingresar.');
+                        alert('El usuario no está registrado.');
                         window.location.href = 'index.php';
                       </script>";
-            } else {
-                echo "Error al registrar: " . $conn->error;
+                exit;
             }
-            $stmt->close();
+        } catch (PDOException $e) {
+            die("Error en el sistema: " . $e->getMessage());
         }
-        $checkUser->close();
     } else {
         echo "<script>
                 alert('Por favor completa todos los campos.');
                 window.location.href = 'index.php';
               </script>";
+        exit;
     }
+} else {
+    header("Location: index.php");
+    exit;
 }
-$conn->close();
 ?>
