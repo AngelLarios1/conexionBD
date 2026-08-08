@@ -1,8 +1,13 @@
 <?php
 // procesar_pago.php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 require_once 'dbcon.php';
 
-$merchant_id = 'm43ygegi362bajsjomkm'; 
+// Credenciales Sandbox
+$merchant_id = 'm43ygegi362bajsjomkm'; // ID de comercio numérico correcto
 $private_key = 'sk_92fff961d95f4262a6cc601920b701e4'; 
 $domain      = 'sandbox-api.openpay.mx';
 
@@ -44,13 +49,18 @@ $resData = json_decode($response, true);
 if ($httpCode === 200 || $httpCode === 201) {
     $transaccionId = $resData['id'];
 
+    // 1. Guardar la orden en la base de datos
     $sql  = "INSERT INTO pedidos (total, estatus, fecha) VALUES (:total, 'Pagado', NOW())";
     $stmt = $con->prepare($sql);
     $stmt->execute([':total' => $monto]);
 
-    echo "<h1>✅ ¡Pago Exitoso!</h1>";
-    echo "<p>ID de Cargo Openpay: <b>{$transaccionId}</b></p>";
+    // 2. Limpiar el carrito de la sesión
+    unset($_SESSION['carrito']);
+
+    // 3. Redirigir a la vista de éxito
+    header("Location: gracias.php?id=" . urlencode($transaccionId));
+    exit;
 } else {
     $error = $resData['description'] ?? 'No se pudo procesar el pago.';
-    echo "<h1>❌ Error en el pago</h1><p>{$error}</p>";
+    echo "<h1>❌ Error en el pago</h1><p>" . htmlspecialchars($error) . "</p>";
 }
