@@ -16,7 +16,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($user) {
-                if ($password === $user['password'] || password_verify($password, $user['password'])) {
+                if (password_verify($password, $user['password'])) {
                     $_SESSION['usuario_id']     = $user['id'];
                     $_SESSION['usuario_nombre'] = $user['nombre'];
 
@@ -33,7 +33,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     exit;
                 }
             } else {
-                // Si el usuario no existe, lanza la alerta y redirige de inmediato
                 echo "<script>
                         alert('El usuario no está registrado.');
                         window.location.href = 'index.php';
