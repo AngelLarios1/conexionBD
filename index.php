@@ -680,9 +680,14 @@
 </div>
 
 <!-- FOOTER -->
-<footer class="py-4 mt-5 text-center">
+<<footer class="py-4 mt-5 text-center">
     <div class="container">
         <p class="m-0 small opacity-75">© 2026 EliteStore Online. Todos los derechos reservados.</p>
+        <p class="m-0 small">
+            <a href="aviso-de-privacidad.php" style="color:inherit;text-decoration:underline;">Aviso de privacidad</a>
+            &nbsp;|&nbsp;
+            <a href="terminos-y-condiciones.php" style="color:inherit;text-decoration:underline;">Términos y condiciones</a>
+        </p>
     </div>
 </footer>
 

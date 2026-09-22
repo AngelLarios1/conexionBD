@@ -5,7 +5,7 @@
         </div>
         <div class="col-12 col-md-12 mb-5 text-center">
             <p style="font-weight: 500;"><i class="bi bi-c-circle"></i>Todos los derechos reservados.</p>
-            <a style="text-decoration: none;color:#000;font-weight: 500;" href="avisodeprivacidad.php">Aviso de privacidad</a> | <a style="text-decoration: none;color:#000;font-weight: 500;" href="terminos-y-condiciones.php">Términos y condiciones</a>
+            <a style="text-decoration: none;color:#000;font-weight: 500;" href="aviso-de-privacidad.php">Aviso de privacidad</a> | <a style="text-decoration: none;color:#000;font-weight: 500;" href="terminos-y-condiciones.php">Términos y condiciones</a>
         </div>
     </div>
 
