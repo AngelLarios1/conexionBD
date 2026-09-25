@@ -1,3 +1,4 @@
+<?php require_once __DIR__ . '/includes/security.php'; ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -50,6 +51,7 @@
     <!-- PESTAÑA 1: PAGO CON TARJETA -->
     <div id="tab-card" class="tab-content active">
         <form id="card-payment-form" action="procesar_pago.php" method="POST">
+            <?= csrf_field() ?>
             <input type="hidden" name="token_id" id="token_id">
             
             <div class="form-group">
@@ -93,6 +95,7 @@
     <!-- PESTAÑA 2: PAGO EN EFECTIVO -->
     <div id="tab-cash" class="tab-content">
         <form id="cash-payment-form" action="pago_efectivo.php" method="POST">
+            <?= csrf_field() ?>
             <div class="form-group">
                 <label>Nombre del Cliente</label>
                 <input type="text" name="nombre" value="Angel Larios" required>

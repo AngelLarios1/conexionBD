@@ -1,9 +1,6 @@
 <?php
-session_start();
-
-if (!isset($_SESSION['usuario_id']) || $_SESSION['usuario_rol'] !== 'Administrador') {
-    die("Acceso denegado. Solo los administradores pueden registrar usuarios.");
-}
+require_once __DIR__ . '/includes/security.php';   // cabeceras + sesión segura + CSRF
+require_admin();                                    // solo administradores
 
 require_once 'vendor/autoload.php';
 require_once 'dbcon.php';
@@ -35,12 +32,21 @@ $mensaje     = "";
 $tipo_alerta = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nombre          = trim($_POST['nombre']);
-    $apellidopaterno = trim($_POST['apellidopaterno']);
-    $apellidomaterno = trim($_POST['apellidomaterno']);
-    $correo          = trim($_POST['correo']);
-    $password_plana  = trim($_POST['password']);
-    $rol             = intval($_POST['rol']);
+    csrf_require();   // bloquea peticiones falsificadas desde otros sitios
+
+    $nombre          = trim($_POST['nombre'] ?? '');
+    $apellidopaterno = trim($_POST['apellidopaterno'] ?? '');
+    $apellidomaterno = trim($_POST['apellidomaterno'] ?? '');
+    $correo          = trim($_POST['correo'] ?? '');
+    $password_plana  = trim($_POST['password'] ?? '');
+    $rol             = in_array((int) ($_POST['rol'] ?? 2), [1, 2], true) ? (int) $_POST['rol'] : 2;
+
+    if (!filter_var($correo, FILTER_VALIDATE_EMAIL)) {
+        $correo = '';   // fuerza el mensaje de "campos requeridos"
+    }
+    if (strlen($password_plana) < 8) {
+        $password_plana = '';
+    }
 
     if (!empty($nombre) && !empty($correo) && !empty($password_plana)) {
         try {
@@ -69,15 +75,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mail = new PHPMailer(true);
             try {
                 $mail->isSMTP();
-                $mail->Host       = 'smtp.gmail.com';
+                // Credenciales SMTP desde .env (antes estaban escritas en el código)
+                $mail->Host       = $_ENV['SMTP_HOST'] ?? 'smtp.gmail.com';
                 $mail->SMTPAuth   = true;
-                $mail->Username   = 'angeleduardolarios23@gmail.com';
-                $mail->Password   = 'ooojiaksqhkxehop';
+                $mail->Username   = env_required('SMTP_USER');
+                $mail->Password   = env_required('SMTP_PASS');
                 $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                $mail->Port       = 587;
+                $mail->Port       = (int) ($_ENV['SMTP_PORT'] ?? 587);
                 $mail->CharSet    = 'UTF-8';
 
-                $mail->setFrom('angeleduardolarios23@gmail.com', 'Fastpack Industrial');
+                $mail->setFrom(env_required('SMTP_USER'), $_ENV['SMTP_FROM_NAME'] ?? 'Fastpack Industrial');
                 $mail->addAddress($correo, $nombre . ' ' . $apellidopaterno);
 
                 $mail->isHTML(true);
@@ -85,16 +92,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $mail->Body = "
                 <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
                     <h2 style='color: #0d6efd; text-align: center;'>¡Bienvenido a Fastpack!</h2>
-                    <p>Hola <strong>{$nombre}</strong>,</p>
+                    <p>Hola <strong>" . e($nombre) . "</strong>,</p>
                     <p>Se ha creado exitosamente tu cuenta. A continuación tus credenciales:</p>
                     <table style='width: 100%; margin: 20px 0; border-collapse: collapse;'>
                         <tr>
                             <td style='padding: 8px; border-bottom: 1px solid #ddd;'><strong>Usuario:</strong></td>
-                            <td style='padding: 8px; border-bottom: 1px solid #ddd;'><code>{$correo}</code></td>
+                            <td style='padding: 8px; border-bottom: 1px solid #ddd;'><code>" . e($correo) . "</code></td>
                         </tr>
                         <tr>
                             <td style='padding: 8px; border-bottom: 1px solid #ddd;'><strong>Contraseña temporal:</strong></td>
-                            <td style='padding: 8px; border-bottom: 1px solid #ddd;'><code>{$password_plana}</code></td>
+                            <td style='padding: 8px; border-bottom: 1px solid #ddd;'><code>" . e($password_plana) . "</code></td>
                         </tr>
                     </table>
                     <p style='color: #d9534f; font-size: 13px;'>* Por seguridad, cambia tu contraseña al ingresar por primera vez.</p>
@@ -104,12 +111,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $mensaje     = "¡Usuario registrado con éxito y correo enviado!";
                 $tipo_alerta = "success";
             } catch (Exception $e) {
-                $mensaje     = "Usuario guardado, pero el correo no pudo enviarse. Error: {$mail->ErrorInfo}";
+                error_log('Error PHPMailer: ' . $mail->ErrorInfo);
+                $mensaje     = "Usuario guardado, pero el correo no pudo enviarse. Contacta a soporte.";
                 $tipo_alerta = "warning";
             }
 
         } catch (\PDOException $e) {
-            $mensaje     = "Error al guardar el usuario: " . $e->getMessage();
+            error_log('Error crear_usuario: ' . $e->getMessage());
+            $mensaje     = "No se pudo guardar el usuario. Verifica que el correo no esté registrado.";
             $tipo_alerta = "danger";
         }
     } else {
@@ -136,12 +145,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="card-body p-4">
 
             <?php if (!empty($mensaje)): ?>
-                <div class="alert alert-<?= $tipo_alerta ?>" role="alert">
-                    <?= $mensaje ?>
+                <div class="alert alert-<?= e($tipo_alerta) ?>" role="alert">
+                    <?= e($mensaje) ?>
                 </div>
             <?php endif; ?>
 
             <form action="crear_usuario.php" method="POST">
+                <?= csrf_field() ?>
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Nombre *</label>
@@ -166,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Contraseña de acceso *</label>
-                        <input type="password" name="password" class="form-control" required placeholder="Contraseña inicial">
+                        <input type="password" name="password" class="form-control" required minlength="8" placeholder="Contraseña inicial (mín. 8)">
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Rol del Usuario *</label>

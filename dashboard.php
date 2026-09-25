@@ -1,14 +1,8 @@
 <?php
-session_start();
+require_once __DIR__ . '/includes/security.php';
 
-// 1. Validar inicio de sesión
-if (!isset($_SESSION['usuario_id'])) {
-    die("<div style='text-align:center; margin-top:50px; font-family:sans-serif;'>
-            <h2>❌ SESIÓN NO INICIADA</h2>
-            <p>Por favor, debes iniciar sesión primero.</p>
-            <a href='index.php'>Ir al Login</a>
-         </div>");
-}
+// 1. Solo administradores (antes bastaba con tener cualquier sesión, incluso de cliente)
+require_admin();
 
 // 2. Cargar la conexión estandarizada
 require_once 'dbcon.php';
@@ -18,7 +12,9 @@ try {
     $stmt = $con->query("SELECT id, nombre, apellidopaterno, username, rol FROM usuarios");
     $usuarios = $stmt->fetchAll();
 } catch (\PDOException $e) {
-    die("Error al consultar la base de datos: " . $e->getMessage());
+    error_log('Error dashboard: ' . $e->getMessage());
+    http_response_code(500);
+    die('Error al consultar la base de datos.');
 }
 ?>
 
@@ -72,7 +68,7 @@ try {
                         <?php if (count($usuarios) > 0): ?>
                             <?php foreach ($usuarios as $user): ?>
                                 <tr>
-                                    <td><strong><?php echo $user['id']; ?></strong></td>
+                                    <td><strong><?php echo (int) $user['id']; ?></strong></td>
                                     <td><?php echo htmlspecialchars($user['nombre'] . ' ' . $user['apellidopaterno']); ?></td>
                                     <td><?php echo htmlspecialchars($user['username']); ?></td>
                                     <td>
@@ -81,7 +77,7 @@ try {
                                         </span>
                                     </td>
                                     <td class="text-center">
-                                        <a href="editar_usuario.php?id=<?php echo $user['id']; ?>" class="btn btn-sm btn-warning me-1" title="Editar">
+                                        <a href="editar_usuario.php?id=<?php echo (int) $user['id']; ?>" class="btn btn-sm btn-warning me-1" title="Editar">
                                             <i class="bi bi-pencil-square"></i>
                                         </a>
                                         <button class="btn btn-sm btn-danger" title="Eliminar">

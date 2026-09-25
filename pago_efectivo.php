@@ -1,19 +1,29 @@
 <?php
 // pago_efectivo.php
+require_once __DIR__ . '/includes/security.php';   // cabeceras + sesión segura + CSRF
 require_once 'dbcon.php';
 
-$merchant_id = 'm43ygegi362bajsjomkm'; 
-$private_key = 'sk_92fff961d95f4262a6cc601920b701e4'; 
-$domain      = 'sandbox-api.openpay.mx';
+// Credenciales desde .env (antes estaban escritas en el código fuente)
+$merchant_id = env_required('OPENPAY_ID');
+$private_key = env_required('OPENPAY_SK');
+$domain      = $_ENV['OPENPAY_DOMAIN'] ?? 'sandbox-api.openpay.mx';
 
 $mensaje = '';
 $fichaPago = null;
 
 if (isset($_POST['generar_ficha'])) {
-    $monto       = (float) $_POST['monto'];
-    $nombre      = $_POST['nombre'];
-    $email       = $_POST['email'];
-    $descripcion = $_POST['descripcion'];
+    csrf_require();
+
+    $monto       = (float) ($_POST['monto'] ?? 0);
+    $nombre      = trim($_POST['nombre'] ?? '');
+    $email       = filter_var(trim($_POST['email'] ?? ''), FILTER_VALIDATE_EMAIL);
+    $descripcion = trim($_POST['descripcion'] ?? '');
+
+    // TODO (pendiente): recalcular el monto en el servidor (hallazgo P-01 del reporte)
+    if (!is_finite($monto) || $monto <= 0 || $nombre === '' || $email === false || $descripcion === '') {
+        http_response_code(400);
+        exit('Datos inválidos.');
+    }
 
     // Estructura para cobro en tiendas de conveniencia (Paynet)
     $bodyData = [
@@ -33,13 +43,18 @@ if (isset($_POST['generar_ficha'])) {
     curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
     curl_setopt($ch, CURLOPT_USERPWD, $private_key . ":");
     curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);   // antes: false (permitía ataques MITM)
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    if ($response === false) {
+        error_log('cURL Openpay: ' . curl_error($ch));
+    }
     curl_close($ch);
 
-    $resData = json_decode($response, true);
+    $resData = is_string($response) ? json_decode($response, true) : null;
 
     if ($httpCode === 200 || $httpCode === 201) {
         $transaccionId = $resData['id'];
@@ -59,7 +74,7 @@ if (isset($_POST['generar_ficha'])) {
         ];
     } else {
         $errorMsg = $resData['description'] ?? 'Error generando ficha de pago.';
-        $mensaje  = "<div style='color:red; background:#f8d7da; padding:10px; border-radius:4px;'>❌ {$errorMsg}</div>";
+        $mensaje  = "<div style='color:red; background:#f8d7da; padding:10px; border-radius:4px;'>❌ " . e($errorMsg) . "</div>";
     }
 }
 ?>
@@ -86,6 +101,7 @@ if (isset($_POST['generar_ficha'])) {
     <?= $mensaje ?>
 
     <form method="POST">
+        <?= csrf_field() ?>
         <div class="field">
             <label>Nombre:</label>
             <input type="text" name="nombre" value="Angel Larios" required>
@@ -111,10 +127,10 @@ if (isset($_POST['generar_ficha'])) {
         <h3>✅ Ficha de Pago Generada</h3>
         <p>Monto a pagar: <b>$<?= number_format($fichaPago['monto'], 2) ?> MXN</b></p>
         <p>Dicta el siguiente número de referencia en la caja:</p>
-        <div class="referencia"><?= chunk_split($fichaPago['referencia'], 4, ' ') ?></div>
+        <div class="referencia"><?= e(chunk_split($fichaPago['referencia'], 4, ' ')) ?></div>
         <p>O muestra este código de barras:</p>
-        <img src="<?= $fichaPago['barcode'] ?>" alt="Código de barras Paynet" style="max-width:100%;">
-        <p><small>ID Transacción: <?= $fichaPago['id'] ?></small></p>
+        <img src="<?= e($fichaPago['barcode']) ?>" alt="Código de barras Paynet" style="max-width:100%;">
+        <p><small>ID Transacción: <?= e($fichaPago['id']) ?></small></p>
     </div>
 <?php endif; ?>
 

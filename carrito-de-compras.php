@@ -1,7 +1,5 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/includes/security.php';   // cabeceras + sesión segura + CSRF
 // Conectamos con tu archivo de conexión real
 require 'conexion.php';
 
@@ -110,10 +108,17 @@ $comisionFactor = (float)$comisionValor / 100; // Ej: 0.03
         let cuponeando = false;
         let alertaMostrada = false;
         let cuponCargadoInicial = false;
-        const ENVIO_MINIMO = <?= $envioMinimo ?>;
-        const ENVIO_COSTO = <?= $envioCosto ?>;
+        const ENVIO_MINIMO = <?= (float) $envioMinimo ?>;
+        const ENVIO_COSTO = <?= (float) $envioCosto ?>;
         const btnNext = document.getElementById("next");
-        const COMISION_FACTOR = <?= $comisionFactor ?>;
+        const COMISION_FACTOR = <?= (float) $comisionFactor ?>;
+
+        // Escapa texto antes de insertarlo como HTML (previene XSS almacenado/DOM)
+        function escapeHtml(valor) {
+            return String(valor ?? "").replace(/[&<>"']/g, c => ({
+                "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+            }[c]));
+        }
 
         function getCart() {
             return JSON.parse(localStorage.getItem("empresaCart")) || [];
@@ -219,7 +224,7 @@ $comisionFactor = (float)$comisionValor / 100; // Ej: 0.03
                 detalle += `
                 <tr>
                     <td>${item.cantidad}</td>
-                    <td style="width: 50%;">${titulo}</td>
+                    <td style="width: 50%;">${escapeHtml(titulo)}</td>
                     <td>$ ${totalFila.toFixed(2)}</td>
                 </tr>`;
             });
@@ -338,31 +343,34 @@ $comisionFactor = (float)$comisionValor / 100; // Ej: 0.03
 
                 let html = "";
                 data.forEach(prod => {
+                    const pid = parseInt(prod.productoID, 10);   // el ID solo puede ser numérico
+                    if (!Number.isInteger(pid)) return;
+                    const num = v => (Number.isFinite(parseFloat(v)) ? parseFloat(v) : 0);
                     html += `
-                    <div class="col-12 mt-3" id="card-${prod.productoID}">
+                    <div class="col-12 mt-3" id="card-${pid}">
                         <div class="card" style="width: 100%;">
                             <div class="row g-0">
                                 <div class="col-5 col-md-4">
                                     <div style="height: 160px; overflow: hidden;">
-                                        <a href="ver-producto.php?id=${prod.productoID}">
-                                            <img src="${prod.primer_medio || 'images/ico.ico'}" class="img-fluid rounded-start" style="width: 100%; height: 100%; object-fit: cover;">
+                                        <a href="ver-producto.php?id=${pid}">
+                                            <img src="${escapeHtml(prod.primer_medio || 'images/ico.ico')}" class="img-fluid rounded-start" style="width: 100%; height: 100%; object-fit: cover;">
                                         </a>
                                     </div>
                                 </div>
                                 <div class="col-7 col-md-8">
                                     <div class="card-body card-buy">
-                                        <h5 id="title-${prod.productoID}" class="card-title" style="text-transform: uppercase; font-weight: 600;">${prod.titulo}</h5>
+                                        <h5 id="title-${pid}" class="card-title" style="text-transform: uppercase; font-weight: 600;">${escapeHtml(prod.titulo)}</h5>
                                         <div class="ms-2 align-items-center">
-                                            <p id="price-${prod.productoID}" 
-                                               data-precio="${prod.preciounitario}" 
-                                               data-mayoreo="${prod.preciomayoreo}" 
-                                               data-minmayoreo="${prod.cantidadmayoreo}"
-                                               data-descuento="${prod.descuento}">
+                                            <p id="price-${pid}" 
+                                               data-precio="${num(prod.preciounitario)}" 
+                                               data-mayoreo="${num(prod.preciomayoreo)}" 
+                                               data-minmayoreo="${num(prod.cantidadmayoreo)}"
+                                               data-descuento="${num(prod.descuento)}">
                                                 Cargando precio...
                                             </p>
-                                            <button class="btn btn-sm btn-outline-secondary" onclick="changeQuantity('${prod.productoID}', -1)">−</button>
-                                            <span id="qty-${prod.productoID}" class="mx-2">0</span>
-                                            <button class="btn btn-sm btn-outline-secondary" onclick="changeQuantity('${prod.productoID}', 1)">+</button>
+                                            <button class="btn btn-sm btn-outline-secondary" onclick="changeQuantity('${pid}', -1)">−</button>
+                                            <span id="qty-${pid}" class="mx-2">0</span>
+                                            <button class="btn btn-sm btn-outline-secondary" onclick="changeQuantity('${pid}', 1)">+</button>
                                         </div>
                                     </div>
                                 </div>

@@ -1,4 +1,4 @@
-<?php session_start(); ?>
+<?php require_once __DIR__ . '/includes/security.php'; ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -537,6 +537,7 @@
                     <!-- FORMULARIO LOGIN -->
                     <div class="tab-pane fade show active" id="tab-login">
                         <form action="login.php" method="POST">
+                            <?= csrf_field() ?>
                             <div class="mb-3">
                                 <label class="form-label fw-semibold text-dark">Correo Electrónico</label>
                                 <input type="email" name="email" class="form-control form-control-lg fs-6" placeholder="ejemplo@correo.com" required>
@@ -552,6 +553,7 @@
                     <!-- FORMULARIO REGISTRO -->
                     <div class="tab-pane fade" id="tab-register">
                         <form action="registro.php" method="POST">
+                            <?= csrf_field() ?>
                             <div class="mb-3">
                                 <label class="form-label fw-semibold text-dark">Nombre Completo</label>
                                 <input type="text" name="nombre" class="form-control form-control-lg fs-6" placeholder="Angel Larios" required>
@@ -621,6 +623,7 @@
                         <!-- TARJETA -->
                         <div class="tab-pane fade show active" id="tab-card">
                             <form id="card-payment-form" action="procesar_pago.php" method="POST">
+                                <?= csrf_field() ?>
                                 <input type="hidden" name="token_id" id="token_id">
                                 <input type="hidden" name="monto" id="card-monto-val">
 
@@ -656,6 +659,7 @@
                         <!-- EFECTIVO -->
                         <div class="tab-pane fade" id="tab-cash">
                             <form action="pago_efectivo.php" method="POST">
+                                <?= csrf_field() ?>
                                 <input type="hidden" name="monto" id="cash-monto-val">
                                 <div class="mb-3">
                                     <label class="form-label fw-semibold text-dark">Nombre del Cliente</label>

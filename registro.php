@@ -1,56 +1,8 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-require_once __DIR__ . '/dbcon.php';
-
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $email    = trim($_POST['email'] ?? '');
-    $password = trim($_POST['password'] ?? '');
-
-    if (!empty($email) && !empty($password)) {
-        try {
-            $stmt = $con->prepare("SELECT id, nombre, password FROM usuarios WHERE username = :email");
-            $stmt->execute([':email' => $email]);
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($user) {
-                if (password_verify($password, $user['password'])) {
-                    $_SESSION['usuario_id']     = $user['id'];
-                    $_SESSION['usuario_nombre'] = $user['nombre'];
-
-                    echo "<script>
-                            alert('¡Bienvenido de nuevo, " . addslashes($user['nombre']) . "!');
-                            window.location.href = 'index.php';
-                          </script>";
-                    exit;
-                } else {
-                    echo "<script>
-                            alert('Contraseña incorrecta.');
-                            window.location.href = 'index.php';
-                          </script>";
-                    exit;
-                }
-            } else {
-                echo "<script>
-                        alert('El usuario no está registrado.');
-                        window.location.href = 'index.php';
-                      </script>";
-                exit;
-            }
-        } catch (PDOException $e) {
-            die("Error en el sistema: " . $e->getMessage());
-        }
-    } else {
-        echo "<script>
-                alert('Por favor completa todos los campos.');
-                window.location.href = 'index.php';
-              </script>";
-        exit;
-    }
-} else {
-    header("Location: index.php");
-    exit;
-}
-?>
+/**
+ * NOTA QA: este archivo era una copia casi idéntica de login.php (no registra usuarios,
+ * solo inicia sesión). Para no mantener dos implementaciones de autenticación (y que una
+ * quede sin parchar), ahora delega en login.php. Si se necesita un registro real,
+ * debe implementarse aquí con validación, hash de contraseña y CSRF.
+ */
+require_once __DIR__ . '/login.php';

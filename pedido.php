@@ -1,7 +1,5 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/includes/security.php';   // cabeceras + sesión segura + CSRF
 // Conexión unificada a la base de datos
 require 'conexion.php';
 
@@ -145,6 +143,7 @@ if (!empty($alert)) {
             <div class="col-12 col-md-8 mt-5 p-5">
                 <h2>PASO 2: INFORMACIÓN PARA ENVÍO</h2>
                 <form action="codeenvio.php" method="post" class="row mt-4">
+                    <?= csrf_field() ?>
                     <input type="hidden" name="cuponLS" id="cuponLS">
                     <input type="hidden" name="cartLS" id="cartLS">
                     

@@ -1,10 +1,11 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+// Localiza la raíz del proyecto (este archivo puede estar en /backend o desplegado en la raíz)
+$__raiz = is_file(__DIR__ . '/includes/security.php') ? __DIR__ : dirname(__DIR__);
+require_once $__raiz . '/includes/security.php';   // cabeceras + sesión segura + CSRF
 
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+// Los errores se registran en el log del servidor, NUNCA se muestran al usuario
+ini_set('display_errors', '0');
+ini_set('display_startup_errors', '0');
 error_reporting(E_ALL);
 
 
@@ -29,23 +30,22 @@ require 'PHPMailer/src/Exception.php';
 require 'dbcon.php';
 
 if (isset($_POST['delete'])) {
-    $registro_id = mysqli_real_escape_string($con, $_POST['delete']);
+    require_admin();     // ANTES: cualquiera podía borrar pedidos
+    csrf_require();
 
-    $query = "DELETE FROM pedidos WHERE id='$registro_id' ";
-    $query_run = mysqli_query($con, $query);
+    $registro_id = (int) $_POST['delete'];
+    $stmt_del = $con->prepare('DELETE FROM pedidos WHERE id = ?');   // consulta preparada
+    $stmt_del->bind_param('i', $registro_id);
+    $stmt_del->execute();
 
-    if ($query_run) {
-        header("Location: industrias.php");
-        exit(0);
-    } else {
-        header("Location: industrias.php");
-        exit(0);
-    }
+    header("Location: industrias.php");
+    exit(0);
 }
 
 
 
 if (isset($_POST['update'])) {
+    csrf_require();
 
     if (!isset($_POST['identificador']) || empty($_POST['identificador'])) {
         die('Identificador no recibido');
@@ -175,7 +175,7 @@ if (isset($_POST['update'])) {
             $update_stmt->execute();
 
             notifyCustomer($identificador, $email, $bank, $clabe, $convenio, $referencia, $url_pdf, $montoFinal, $vigenciaAmigable);
-            header("Location: orden.php?id=" . $identificador);
+            header("Location: orden.php?id=" . urlencode($identificador));
             exit();
         } else {
             if ($charge->status == 'completed') {
@@ -185,7 +185,7 @@ if (isset($_POST['update'])) {
                 $update_stmt->bind_param("ss", $charge->id, $identificador);
                 $update_stmt->execute();
 
-                header("Location: orden.php?id=" . $identificador);
+                header("Location: orden.php?id=" . urlencode($identificador));
                 exit();
             } else if ($charge->status == 'charge_pending') {
                 // Caso B: Requiere validación 3D Secure
@@ -203,12 +203,13 @@ if (isset($_POST['update'])) {
     } catch (OpenpayApiRequestError $e) {
         handleOpenpayError($e, $identificador);
     } catch (Exception $e) {
+        error_log('Error codepago: ' . $e->getMessage());
         $_SESSION['alert'] = [
             'title'   => 'ERROR DEL SISTEMA',
-            'message' => 'Contacta a soporte: ' . $e->getMessage(),
+            'message' => 'Ocurrió un error inesperado. Contacta a soporte.',
             'icon'    => 'error'
         ];
-        header("Location: pago.php?id=$identificador");
+        header("Location: pago.php?id=" . urlencode($identificador));
         exit(0);
     }
 
@@ -242,7 +243,8 @@ function handleOpenpayError($e, $identificador)
             $message = 'La autenticación de la tarjeta falló. Por favor, intenta con otro método de pago o contacta a tu banco.';
             break;
         default:
-            $message = 'Error (' . $errorCode . '): ' . $e->getMessage();
+            error_log('Openpay error ' . $errorCode . ': ' . $e->getMessage());
+            $message = 'No se pudo procesar el pago (código ' . (int) $errorCode . '). Intenta con otro método o contacta a soporte.';
             break;
     }
 
@@ -252,11 +254,12 @@ function handleOpenpayError($e, $identificador)
         'icon'    => 'error'
     ];
 
-    header("Location: pago.php?id=$identificador");
+    header("Location: pago.php?id=" . urlencode($identificador));
     exit(0);
 }
 
 if (isset($_POST['save'])) {
+    csrf_require();
     $nombre    = trim($_POST['nombre'] ?? '');
     $apellidop = trim($_POST['apellidop'] ?? '');
     $apellidom = trim($_POST['apellidom'] ?? '');
@@ -314,7 +317,7 @@ if (isset($_POST['save'])) {
         $up_stmt->execute();
         $up_stmt->close();
 
-        header("Location: pago.php?id=$identificador");
+        header("Location: pago.php?id=" . urlencode($identificador));
         exit(0);
     } else {
         // error_log($stmt->error); 
@@ -328,14 +331,15 @@ function notifyCustomer($identificador, $email, $bank, $clabe, $convenio, $refer
 {
     $mail = new PHPMailer(true);
     $mail->isSMTP();
-    $mail->Host = 'mail.dominio.mx';
-    $mail->Port = 465;
+    // Credenciales SMTP desde .env (antes estaban escritas en el código)
+    $mail->Host = env_required('SMTP_HOST');
+    $mail->Port = (int) ($_ENV['SMTP_PORT'] ?? 465);
     $mail->SMTPAuth = true;
-    $mail->Username = 'no-reply@dominio.mx';
-    $mail->Password = '=@dH6mqA5H7%MEa,';
+    $mail->Username = env_required('SMTP_USER');
+    $mail->Password = env_required('SMTP_PASS');
     $mail->SMTPSecure = 'ssl';
 
-    $mail->setFrom('no-reply@dominio.mx', 'MI EMPRESA');
+    $mail->setFrom(env_required('SMTP_USER'), 'MI EMPRESA');
     $mail->addAddress($email);
     $mail->Subject = 'Realiza tu pago por SPEI';
     $mail->CharSet = 'UTF-8';
@@ -381,9 +385,9 @@ function notifyCustomer($identificador, $email, $bank, $clabe, $convenio, $refer
                     margin:30px 0;
                 ">
             <p><strong>Beneficiario:</strong> DOMINIO</p>
-            <p><strong>Concepto:</strong> Pedido #' . $identificador . '</p>
+            <p><strong>Concepto:</strong> Pedido #' . htmlspecialchars((string) $identificador, ENT_QUOTES, 'UTF-8') . '</p>
             <p><strong>Total a pagar:</strong> $' . number_format($total, 2) . '</p>
-            <p><strong>Banco:</strong> ' . $bank . '</p>
+            <p><strong>Banco:</strong> ' . htmlspecialchars((string) $bank, ENT_QUOTES, 'UTF-8') . '</p>
             <p><strong>Referencia:</strong> ' . htmlspecialchars(implode(' ', str_split($referencia, 4)), ENT_QUOTES, 'UTF-8') . '</p>
 <p><strong>CLABE (Con otros bancos):</strong> ' . htmlspecialchars(implode(' ', str_split($clabe, 4)), ENT_QUOTES, 'UTF-8') . '</p>
 <p><strong>Convenio CIE (Con BBVA):</strong> ' . htmlspecialchars(implode(' ', str_split($convenio, 3)), ENT_QUOTES, 'UTF-8') . '</p>

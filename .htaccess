@@ -1,3 +1,39 @@
+# ============================================================
+#  Fastpack - configuración Apache endurecida
+# ============================================================
+
+# 1) Forzar HTTPS (regla original)
 RewriteEngine On
 RewriteCond %{HTTPS} off
 RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# 2) Bloquear acceso web a carpetas internas
+#    (vendor/ e includes/ solo deben usarse desde PHP, nunca desde el navegador)
+RewriteRule ^(vendor|includes|\.git)(/|$) - [F,L]
+
+# 3) Sin listado de directorios ni negociación de contenido
+Options -Indexes -MultiViews
+
+# 4) Bloquear archivos sensibles: .env*, composer.*, *.lock, *.sql, *.log, *.bak, test.html
+<IfModule mod_authz_core.c>
+    <FilesMatch "(^\.env.*|^composer\.(json|lock)$|\.(lock|sql|log|bak|dist|md)$|^test\.html$)">
+        Require all denied
+    </FilesMatch>
+</IfModule>
+
+# 5) Cabeceras de seguridad (aplican también a CSS/JS/imágenes y páginas de error)
+#    La CSP se define en includes/security.php porque depende de la aplicación.
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Header always unset X-Powered-By
+    Header unset X-Powered-By
+</IfModule>
+
+# 6) Pasar el header Authorization a PHP (necesario para autenticar el webhook con PHP-FPM/CGI)
+<IfModule mod_setenvif.c>
+    SetEnvIf Authorization "(.+)" HTTP_AUTHORIZATION=$1
+</IfModule>

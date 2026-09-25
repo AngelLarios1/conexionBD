@@ -1,7 +1,6 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/includes/security.php';   // cabeceras + sesión segura + CSRF
+require_admin();                                    // panel de administración: solo rol Administrador
 require_once 'dbcon.php';
 
 $alert = isset($_SESSION['alert']) ? $_SESSION['alert'] : null;
@@ -28,30 +27,8 @@ if (!empty($alert)) {
     unset($_SESSION['alert']);
 }
 
-if (isset($_SESSION['username'])) {
-    $username = $_SESSION['username'];
-
-    $stmt_user = $con->prepare("SELECT * FROM usuarios WHERE username = :username");
-    $stmt_user->execute([':username' => $username]);
-    $user_data = $stmt_user->fetch();
-
-    if (!$user_data) {
-        $_SESSION['alert'] = [
-            'title' => 'USUARIO NO ENCONTRADO',
-            'icon' => 'error'
-        ];
-        header('Location: login.php');
-        exit();
-    }
-} else {
-    $_SESSION['alert'] = [
-        'message' => 'Para acceder debes iniciar sesión primero',
-        'title' => 'SESIÓN NO INICIADA',
-        'icon' => 'error'
-    ];
-    header('Location: login.php');
-    exit();
-}
+// (El control de acceso se hace arriba con require_admin(); el bloque que comprobaba
+//  $_SESSION['username'] fue eliminado porque ningún login establece esa clave.)
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -123,19 +100,20 @@ if (isset($_SESSION['username'])) {
                                             foreach ($productos as $registro) {
                                         ?>
                                                 <tr>
-                                                    <td><p><?= $registro['id']; ?></p></td>
+                                                    <td><p><?= (int) $registro['id']; ?></p></td>
                                                     <td><p><?= htmlspecialchars($registro['titulo'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p></td>
                                                     <td><p><?= htmlspecialchars($registro['subtitulo'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p></td>
                                                     <td><p><?= htmlspecialchars($registro['categorias'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p></td>
                                                     <td><p><?= htmlspecialchars($registro['subcategorias'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p></td>
                                                     <td><p><?= htmlspecialchars($registro['talla'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p></td>
                                                     <td>
-                                                        <a href="editarproductoventa.php?id=<?= $registro['id']; ?>" class="btn btn-warning btn-sm m-1"><i class="bi bi-pencil-square"></i></a>
+                                                        <a href="editarproductoventa.php?id=<?= (int) $registro['id']; ?>" class="btn btn-warning btn-sm m-1"><i class="bi bi-pencil-square"></i></a>
 
-                                                        <a href="duplicar-producto-venta.php?id=<?= $registro['id']; ?>" class="btn btn-secondary btn-sm m-1"><i class="bi bi-copy"></i></a>
+                                                        <a href="duplicar-producto-venta.php?id=<?= (int) $registro['id']; ?>" class="btn btn-secondary btn-sm m-1"><i class="bi bi-copy"></i></a>
 
                                                         <form action="codeproductosventa.php" method="POST" class="d-inline">
-                                                            <button type="submit" name="delete" value="<?= $registro['id']; ?>" class="btn btn-danger btn-sm m-1"><i class="bi bi-trash-fill"></i></button>
+<?= csrf_field() ?>
+                                                            <button type="submit" name="delete" value="<?= (int) $registro['id']; ?>" class="btn btn-danger btn-sm m-1"><i class="bi bi-trash-fill"></i></button>
                                                         </form>
                                                     </td>
                                                 </tr>
@@ -165,6 +143,7 @@ if (isset($_SESSION['username'])) {
                 </div>
                 <div class="modal-body">
                     <form action="codeproductosventa.php" method="POST" class="row" enctype="multipart/form-data">
+<?= csrf_field() ?>
                         <div class="col-12 col-md-12 form-floating mb-3">
                             <input type="text" class="form-control" name="titulo" id="titulo" placeholder="Titulo" autocomplete="off" required>
                             <label for="titulo">Título</label>
@@ -312,6 +291,7 @@ if (isset($_SESSION['username'])) {
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form action="codeproductosventa.php" method="POST">
+<?= csrf_field() ?>
                     <div class="modal-body">
                         <div class="col-12 col-md-12 mb-3">
                             <p class="mb-1"><b>Selecciona el producto al que le quieres agregar tallas</b></p>

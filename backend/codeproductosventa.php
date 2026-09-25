@@ -1,12 +1,34 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-require_once 'dbcon.php';
+// Localiza la raíz del proyecto (este archivo puede estar en /backend o desplegado en la raíz)
+$__raiz = is_file(__DIR__ . '/includes/security.php') ? __DIR__ : dirname(__DIR__);
+require_once $__raiz . '/includes/security.php';   // cabeceras + sesión segura + CSRF
 
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+// ANTES: este endpoint no validaba sesión; cualquiera podía crear/editar/borrar productos.
+require_admin();
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_require();
+}
+
+require_once $__raiz . '/dbcon.php';
+
+// Los errores se registran en el log del servidor, NUNCA se muestran al usuario
+ini_set('display_errors', '0');
+ini_set('display_startup_errors', '0');
 error_reporting(E_ALL);
+
+/** Registra el detalle técnico en el log y devuelve un mensaje genérico para el usuario */
+function safe_error(Throwable $e, string $mensajeUsuario): string
+{
+    error_log('[codeproductosventa] ' . $e->getMessage());
+    return $mensajeUsuario;
+}
+
+/** Tipo MIME real del archivo (por su contenido), no el que declara el navegador */
+function mime_real(string $rutaTmp): string
+{
+    $f = new finfo(FILEINFO_MIME_TYPE);
+    return (string) $f->file($rutaTmp);
+}
 
 /* ==========================================================================
    1. ELIMINAR PRODUCTO Y RELACIONES
@@ -45,7 +67,7 @@ if (isset($_POST['delete'])) {
         }
         $_SESSION['alert'] = [
             'title' => 'ERROR',
-            'message' => 'Notifica a soporte: ' . $e->getMessage(),
+            'message' => safe_error($e, 'Notifica a soporte.'),
             'icon' => 'error'
         ];
     }
@@ -184,14 +206,14 @@ if (isset($_POST['update'])) {
         if (isset($_FILES['medios']) && !empty($_FILES['medios']['tmp_name'][0])) {
             $directorio = 'productosventa/';
             if (!is_dir($directorio)) {
-                mkdir($directorio, 0777, true);
+                mkdir($directorio, 0755, true);
             }
 
             $stmt_ins_medio = $con->prepare("INSERT INTO mediosventa (idproducto, medio) VALUES (:idproducto, :medio)");
 
             foreach ($_FILES['medios']['tmp_name'] as $key => $tmp_name) {
                 $nombre_original = $_FILES['medios']['name'][$key];
-                $tipo = $_FILES['medios']['type'][$key];
+                $tipo = is_uploaded_file($tmp_name) ? mime_real($tmp_name) : '';   // MIME real, no el declarado por el cliente
                 $ext = strtolower(pathinfo($nombre_original, PATHINFO_EXTENSION));
 
                 $nombre_archivo = uniqid() . ".jpg";
@@ -202,7 +224,7 @@ if (isset($_POST['update'])) {
                         imagejpeg($imagen, $directorio . $nombre_archivo);
                         imagedestroy($imagen);
                     }
-                } elseif ($ext === 'pdf' || $ext === 'mp4') {
+                } elseif (($ext === 'pdf' && $tipo === 'application/pdf') || ($ext === 'mp4' && $tipo === 'video/mp4')) {
                     $nombre_archivo = uniqid() . "." . $ext;
                     move_uploaded_file($tmp_name, $directorio . $nombre_archivo);
                 } else {
@@ -242,7 +264,7 @@ if (isset($_POST['update'])) {
         }
         $_SESSION['alert'] = [
             'title' => 'ERROR',
-            'message' => 'Error al actualizar el producto: ' . $e->getMessage(),
+            'message' => safe_error($e, 'Error al actualizar el producto.'),
             'icon' => 'error'
         ];
     }
@@ -318,14 +340,14 @@ if (isset($_POST['save'])) {
         if (isset($_FILES['medios']) && !empty($_FILES['medios']['tmp_name'][0])) {
             $directorio = 'productosventa/';
             if (!is_dir($directorio)) {
-                mkdir($directorio, 0777, true);
+                mkdir($directorio, 0755, true);
             }
 
             $stmt_ins_medio = $con->prepare("INSERT INTO mediosventa (idproducto, medio) VALUES (:idproducto, :medio)");
 
             foreach ($_FILES['medios']['tmp_name'] as $key => $tmp_name) {
                 $nombre_original = $_FILES['medios']['name'][$key];
-                $tipo = $_FILES['medios']['type'][$key];
+                $tipo = is_uploaded_file($tmp_name) ? mime_real($tmp_name) : '';   // MIME real, no el declarado por el cliente
                 $ext = strtolower(pathinfo($nombre_original, PATHINFO_EXTENSION));
 
                 $nombre_archivo = uniqid() . ".jpg";
@@ -336,7 +358,7 @@ if (isset($_POST['save'])) {
                         imagejpeg($imagen, $directorio . $nombre_archivo);
                         imagedestroy($imagen);
                     }
-                } elseif ($ext === 'pdf' || $ext === 'mp4') {
+                } elseif (($ext === 'pdf' && $tipo === 'application/pdf') || ($ext === 'mp4' && $tipo === 'video/mp4')) {
                     $nombre_archivo = uniqid() . "." . $ext;
                     move_uploaded_file($tmp_name, $directorio . $nombre_archivo);
                 } else {
@@ -370,7 +392,7 @@ if (isset($_POST['save'])) {
         }
         $_SESSION['alert'] = [
             'title' => 'ERROR',
-            'message' => 'Notifica a soporte: ' . $e->getMessage(),
+            'message' => safe_error($e, 'Notifica a soporte.'),
             'icon' => 'error'
         ];
     }
@@ -443,7 +465,7 @@ if (isset($_POST['duplicar'])) {
         }
         $_SESSION['alert'] = [
             'title' => 'Error al duplicar el producto',
-            'message' => 'Contacte a su proveedor: ' . $e->getMessage(),
+            'message' => safe_error($e, 'Contacte a su proveedor.'),
             'icon' => 'error'
         ];
     }
@@ -568,6 +590,8 @@ if (isset($_POST['saveTalla'])) {
         if ($con->inTransaction()) {
             $con->rollBack();
         }
-        die('Error: ' . $e->getMessage());
+        error_log('[codeproductosventa] ' . $e->getMessage());
+        http_response_code(500);
+        die('Error interno del servidor.');
     }
 }

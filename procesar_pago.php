@@ -1,15 +1,18 @@
 <?php
 // procesar_pago.php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
+require_once __DIR__ . '/includes/security.php';   // cabeceras + sesión segura + CSRF
 require_once 'dbcon.php';
 
-// Credenciales Sandbox
-$merchant_id = 'm43ygegi362bajsjomkm'; // ID de comercio numérico correcto
-$private_key = 'sk_92fff961d95f4262a6cc601920b701e4'; 
-$domain      = 'sandbox-api.openpay.mx';
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: index.php');
+    exit;
+}
+csrf_require();
+
+// Credenciales desde .env (antes estaban escritas en el código fuente)
+$merchant_id = env_required('OPENPAY_ID');
+$private_key = env_required('OPENPAY_SK');
+$domain      = $_ENV['OPENPAY_DOMAIN'] ?? 'sandbox-api.openpay.mx';
 
 $tokenId         = $_POST['token_id'] ?? '';
 $deviceSessionId = $_POST['device_session_id'] ?? '';
@@ -17,6 +20,11 @@ $monto           = (float) ($_POST['monto'] ?? 0);
 
 if (empty($tokenId) || empty($deviceSessionId)) {
     exit('Datos de transacción incompletos.');
+}
+// TODO (pendiente): el monto NO debe venir del navegador. Recalcularlo en el servidor
+// a partir de los IDs de producto (ver hallazgo P-01 del reporte).
+if (!is_finite($monto) || $monto <= 0) {
+    exit('Monto inválido.');
 }
 
 $bodyData = [
@@ -38,13 +46,18 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($bodyData));
 curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
 curl_setopt($ch, CURLOPT_USERPWD, $private_key . ":");
 curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);   // antes: false (permitía ataques MITM)
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
 $response = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+if ($response === false) {
+    error_log('cURL Openpay: ' . curl_error($ch));
+}
 curl_close($ch);
 
-$resData = json_decode($response, true);
+$resData = is_string($response) ? json_decode($response, true) : null;
 
 if ($httpCode === 200 || $httpCode === 201) {
     $transaccionId = $resData['id'];
@@ -62,5 +75,5 @@ if ($httpCode === 200 || $httpCode === 201) {
     exit;
 } else {
     $error = $resData['description'] ?? 'No se pudo procesar el pago.';
-    echo "<h1>❌ Error en el pago</h1><p>" . htmlspecialchars($error) . "</p>";
+    echo "<h1>❌ Error en el pago</h1><p>" . e($error) . "</p>";
 }

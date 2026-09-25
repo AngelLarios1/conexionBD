@@ -1,7 +1,5 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/includes/security.php';   // cabeceras + sesión segura + CSRF
 
 // Cargar la conexión PDO estandarizada
 require_once 'dbcon.php'; 

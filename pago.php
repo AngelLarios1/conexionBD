@@ -1,7 +1,5 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/includes/security.php';   // cabeceras + sesión segura + CSRF
 
 require 'vendor/autoload.php';
 $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
@@ -117,14 +115,14 @@ if (!empty($_SESSION['alert'])) {
     <link rel="shortcut icon" type="image/x-icon" href="images/ico.ico" />
     <title>Pago | Mi Empresa</title>
     
-    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script type="text/javascript" src="https://openpay.s3.amazonaws.com/openpay.v1.min.js"></script>
     <script type='text/javascript' src="https://openpay.s3.amazonaws.com/openpay-data.v1.min.js"></script>
 
     <script type="text/javascript">
         // Cargamos la ID y la PK desde las variables de entorno de forma segura
-        const OPENPAY_ID = "<?php echo $_ENV['OPENPAY_ID']; ?>";
-        const OPENPAY_PK = "<?php echo $_ENV['OPENPAY_PUBLIC_KEY'] ?? ''; ?>"; 
+        const OPENPAY_ID = <?= json_encode((string) ($_ENV['OPENPAY_ID'] ?? ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        const OPENPAY_PK = <?= json_encode((string) ($_ENV['OPENPAY_PUBLIC_KEY'] ?? ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
         $(document).ready(function() {
             OpenPay.setId(OPENPAY_ID);
@@ -232,6 +230,7 @@ if (!empty($_SESSION['alert'])) {
             <div class="col-11 col-md-7 mt-5 mb-5 p-5 order-1">
                 <h2>PASO 3: PAGO</h2>
                 <form action="codepago.php" method="POST" id="payment-form" class="row justify-content-center">
+                    <?= csrf_field() ?>
                     <input type="hidden" name="identificador" value="<?= htmlspecialchars($pedido['identificador'], ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="token_id" id="token_id">
                     <input type="hidden" name="use_card_points" id="use_card_points" value="false">
@@ -343,7 +342,6 @@ if (!empty($_SESSION['alert'])) {
     <?php include 'footer.php'; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/js/bootstrap.bundle.min.js" integrity="sha384-pprn3073KE6tl6bjs2QrFaJGz5/SUsLqktiwsUTF55Jfv3qYSDhgCecCxMW52nD2" crossorigin="anonymous"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src='https://cdn.jsdelivr.net/npm/sweetalert2@10'></script>
     <script src="js/menu.js"></script>
 

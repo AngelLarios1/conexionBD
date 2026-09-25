@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/includes/security.php';   // cabeceras + sesión segura
 require_once 'vendor/autoload.php';
 require_once 'dbcon.php';
 
@@ -31,6 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $nombre          = desencriptar($usuario['nombre']);
                 $apellidopaterno = desencriptar($usuario['apellidopaterno']);
 
+                session_regenerate_id(true);   // evita session fixation
                 $_SESSION['usuario_id']     = $usuario['id'];
                 $_SESSION['usuario_nombre'] = $nombre . ' ' . $apellidopaterno;
                 $_SESSION['usuario_rol']    = ($usuario['rol'] == 1) ? 'Administrador' : 'Colaborador';
@@ -39,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
         } catch (\PDOException $e) {
+            error_log('Error login_process: ' . $e->getMessage());
             header("Location: index.php?error=db");
             exit;
         }
